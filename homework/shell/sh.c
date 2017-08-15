@@ -56,27 +56,58 @@ runcmd(struct cmd *cmd)
   default:
     fprintf(stderr, "unknown runcmd\n");
     exit(-1);
-
-  case ' ':
-    ecmd = (struct execcmd*)cmd;
-    if(ecmd->argv[0] == 0)
-      exit(0);
-    fprintf(stderr, "exec not implemented\n");
-    // Your code here ...
+  case ' ': 
+    {
+      ecmd = (struct execcmd*)cmd;
+      if(ecmd->argv[0] == 0)
+        exit(0);
+      // Your code here ...
+      char* prefix[] = {".", "/bin", "/usr/bin", NULL};
+      char** ptr;
+      char* path = ecmd->argv[0];
+      for (ptr = prefix; *ptr != NULL; ptr++) {
+        char* new_path = malloc(strlen(path) + strlen(*ptr) + 2);
+        sprintf(new_path, "%s/%s", *ptr, path);
+        ecmd->argv[0] = new_path;
+        execv(ecmd->argv[0], &(ecmd->argv[0]));
+      }
+      exit(-1);
+    }
     break;
-
   case '>':
   case '<':
     rcmd = (struct redircmd*)cmd;
-    fprintf(stderr, "redir not implemented\n");
     // Your code here ...
+    r = open(rcmd->file, rcmd->mode, 0666);
+    if (r < 0) {
+      fprintf(stderr, "shell: %s: Failed to open\n", rcmd->file);
+      exit(-1);
+    }
+    close(rcmd->fd);  
+    dup2(r, rcmd->fd);
+    close(r);
     runcmd(rcmd->cmd);
     break;
 
   case '|':
     pcmd = (struct pipecmd*)cmd;
-    fprintf(stderr, "pipe not implemented\n");
     // Your code here ...
+    pipe(p);
+    // Run right command on the parent process,
+    // because we need to wait for it to finish
+    if (fork1() == 0) {
+      close(1);
+      dup2(p[1], 1);
+      close(p[0]);
+      close(p[1]);
+      runcmd(pcmd->left);
+    } else {
+      close(0);
+      dup2(p[0], 0);
+      close(p[0]);
+      close(p[1]);
+      runcmd(pcmd->right);
+    }
     break;
   }    
   exit(0);
