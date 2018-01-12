@@ -63,8 +63,13 @@ void
 trap_init(void)
 {
 	extern struct Segdesc gdt[];
+  extern uintptr_t vectors[];
+  int i;
 
 	// LAB 3: Your code here.
+  for (i = 0; i < 256; i++) {
+    SETGATE(idt[i], 0, GD_KT, vectors[i], 0);
+  }
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -147,6 +152,7 @@ trap_dispatch(struct Trapframe *tf)
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
+
 	if (tf->tf_cs == GD_KT)
 		panic("unhandled trap in kernel");
 	else {
