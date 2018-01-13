@@ -548,7 +548,30 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
-
+  pte_t* pte;
+  const void* start_va;
+  const void* end_va;
+  if ((uintptr_t)va > ULIM) {
+    user_mem_check_addr = (uintptr_t)va;
+    return -E_FAULT;
+  }
+  // Shrink len for preventing overflow
+  len = MIN(len, ULIM + 1 - (uintptr_t)va);
+  perm |= PTE_P;
+  start_va = ROUNDDOWN(va, PGSIZE);
+  end_va = ROUNDUP(va + len, PGSIZE);
+  for (; start_va < end_va; start_va += PGSIZE) {
+    pte = pgdir_walk(env->env_pgdir, start_va, 0);
+    if (pte == NULL || (*pte & perm) != perm) {
+      user_mem_check_addr = (uintptr_t)MAX(start_va, va);
+      return -E_FAULT;
+    }
+  }
+  if ((uintptr_t)end_va > ULIM) {
+    // This may happen when perm doesn't contain PTE_U
+    user_mem_check_addr = ULIM;
+    return -E_FAULT;
+  }
 	return 0;
 }
 

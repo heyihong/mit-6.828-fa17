@@ -180,6 +180,8 @@ struct Segdesc {
 
 #endif /* !__ASSEMBLER__ */
 
+#define DPL_USER 0x3
+
 // Application segment type bits
 #define STA_X		0x8	    // Executable segment
 #define STA_E		0x4	    // Expand down (non-executable segments)
