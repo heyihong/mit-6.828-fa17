@@ -191,7 +191,7 @@ env_setup_vm(struct Env *e)
 	// LAB 3: Your code here.
   ++p->pp_ref;
   e->env_pgdir = page2kva(p);
-	for (i = PDX(UTOP); i < PGSIZE; i++) {
+	for (i = PDX(UTOP); i < NPDENTRIES; i++) {
     e->env_pgdir[i] = kern_pgdir[i];
   }
 
@@ -302,7 +302,7 @@ region_alloc(struct Env *e, void *va, size_t len)
     if (p == NULL) {
       panic("page_alloc: %e", -E_NO_MEM);
     }
-    r = page_insert(e->env_pgdir, p, start_va, PTE_P | PTE_U | PTE_W);
+    r = page_insert(e->env_pgdir, p, start_va, PTE_U | PTE_W);
     if (r != 0) {
       panic("page_insert: %e", r);
     }
@@ -542,6 +542,7 @@ env_run(struct Env *e)
     e->env_runs++;
     lcr3(PADDR(e->env_pgdir));
   }
+  unlock_kernel();
   env_pop_tf(&e->env_tf);
 }
 

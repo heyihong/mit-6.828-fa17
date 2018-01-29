@@ -30,6 +30,7 @@ extern struct CpuInfo cpus[NCPU];
 extern int ncpu;                    // Total number of CPUs in the system
 extern struct CpuInfo *bootcpu;     // The boot-strap processor (BSP)
 extern physaddr_t lapicaddr;        // Physical MMIO address of the local APIC
+extern volatile uint32_t* lapic;
 
 // Per-CPU kernel stacks
 extern unsigned char percpu_kstacks[NCPU][KSTKSIZE];

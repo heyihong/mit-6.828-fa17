@@ -269,7 +269,10 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
-
+  uint32_t i;
+  for (i = 0; i < NCPU; i++) {
+    boot_map_region(kern_pgdir, KSTACKTOP - i * (KSTKSIZE + KSTKGAP) - KSTKSIZE, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W);
+  }
 }
 
 // --------------------------------------------------------------
@@ -313,7 +316,7 @@ page_init(void)
   kern_end = PGNUM(PADDR(boot_alloc(0)));
 	for (i = 0; i < npages; i++) {
 		pages[i].pp_ref = 0;
-    if ((i >= 1 && i < npages_basemem) || (i >= kern_end)) {
+    if (i != PGNUM(MPENTRY_PADDR) && ((i >= 1 && i < npages_basemem) || (i >= kern_end))) {
       pages[i].pp_link = page_free_list;
       page_free_list = &pages[i];
     } else {
@@ -590,7 +593,15 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+
+  size = ROUNDUP(size, PGSIZE); 
+  if (MMIOLIM - base < size) {
+    panic("mmio_map_region: the reservation would overflow MMIOLIM");
+  }
+  boot_map_region(kern_pgdir, base, size, pa, PTE_W | PTE_PCD | PTE_PWT); 
+  uintptr_t old_base = base;
+  base += size; 
+  return (void*)old_base;
 }
 
 static uintptr_t user_mem_check_addr;
@@ -660,7 +671,6 @@ user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 		env_destroy(env);	// may not return
 	}
 }
-
 
 // --------------------------------------------------------------
 // Checking functions.
