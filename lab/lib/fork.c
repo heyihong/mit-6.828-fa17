@@ -7,6 +7,13 @@
 // It is one of the bits explicitly allocated to user processes (PTE_AVAIL).
 #define PTE_COW		0x800
 
+static int get_perm(unsigned pn) {
+  if ((uvpd[pn / NPTENTRIES] & PTE_P) == 0) {
+    return 0;
+  }
+  return PGOFF(uvpt[pn]);
+}
+
 //
 // Custom page fault handler - if faulting page is copy-on-write,
 // map in our own private writable copy.
@@ -33,8 +40,22 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 
 	// LAB 4: Your code here.
-
-	panic("pgfault not implemented");
+  int perm = get_perm(PGNUM(addr));
+  if ((err & FEC_WR) == 0 || (perm & PTE_COW) == 0) {
+    panic("pgfault: could not handle the fauling access va %x", addr); 
+  }
+  if ((r = sys_page_alloc(0, PFTEMP, PTE_P | PTE_U | PTE_W)) < 0) {
+    panic("sys_page_alloc: %e", r);
+  }
+  addr = ROUNDDOWN(addr, PGSIZE);
+  memcpy(PFTEMP, addr, PGSIZE);
+  perm = (perm | PTE_W) & ~PTE_COW;
+  if ((r = sys_page_map(0, PFTEMP, 0, addr, perm)) < 0) {
+    panic("sys_page_map: %e", r);
+  }
+  if ((r = sys_page_unmap(0, PFTEMP)) < 0) {
+    panic("sys_page_unmap: %e", r);
+  }
 }
 
 //
@@ -54,7 +75,17 @@ duppage(envid_t envid, unsigned pn)
 	int r;
 
 	// LAB 4: Your code here.
-	panic("duppage not implemented");
+  int perm = get_perm(pn);
+  void* addr = (void*)(pn * PGSIZE);
+  if ((perm & PTE_W) != 0) {
+    perm = (perm | PTE_COW) & ~PTE_W;
+  }
+  if ((r = sys_page_map(0, addr, envid, addr, perm)) < 0) {
+    return r;
+  }
+  if ((r = sys_page_map(0, addr, 0, addr, perm)) < 0) {
+    return r;
+  }
 	return 0;
 }
 
@@ -77,8 +108,33 @@ duppage(envid_t envid, unsigned pn)
 envid_t
 fork(void)
 {
+  extern void _pgfault_upcall(void);
 	// LAB 4: Your code here.
-	panic("fork not implemented");
+  envid_t envid;
+  int r;
+  set_pgfault_handler(pgfault);
+  envid = sys_exofork();
+  if (envid < 0) {
+    return envid;
+  }
+  if (envid == 0) {
+    thisenv = &envs[ENVX(sys_getenvid())];
+    return 0;
+  }
+  int pn;
+  for (pn = 0; pn < PGNUM(UTOP); pn++) {
+    if ((get_perm(pn) & PTE_P) != 0 && pn != PGNUM(UXSTACKTOP - PGSIZE)) {
+      if ((r = duppage(envid, pn)) < 0) {
+        return r;
+      }
+    }
+  }
+  sys_page_alloc(envid, (void*)(UXSTACKTOP - PGSIZE), PTE_U | PTE_P | PTE_W);
+  sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
+  if ((r = sys_env_set_status(envid, ENV_RUNNABLE)) < 0) {
+    return r;
+  }
+  return envid;
 }
 
 // Challenge!

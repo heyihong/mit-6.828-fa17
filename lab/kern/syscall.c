@@ -148,7 +148,13 @@ static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4: Your code here.
-	panic("sys_env_set_pgfault_upcall not implemented");
+  struct Env * e;
+  int r;
+  if ((r = envid2env(envid, &e, 1)) < 0) {
+    return r;
+  }
+  e->env_pgfault_upcall = func;
+  return 0;
 }
 
 // Allocate a page of memory and map it at 'va' with permission
@@ -238,12 +244,13 @@ sys_page_map(envid_t srcenvid, void *srcva,
     return -E_INVAL;
   }
   pte_t* pte; 
-  pte = pgdir_walk(srce->env_pgdir, srcva, 0);
-  if (pte == NULL || 
+  struct PageInfo * pinfo;
+  pinfo = page_lookup(srce->env_pgdir, srcva, &pte);
+  if (pinfo == NULL || 
       ((perm & PTE_W) != 0 && (*pte & PTE_W) == 0)) {
     return -E_INVAL;
   }
-  return page_insert(dste->env_pgdir, pa2page(*pte), dstva, perm);
+  return page_insert(dste->env_pgdir, pinfo, dstva, perm);
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
@@ -366,6 +373,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
     return sys_page_map((envid_t)a1, (void*)a2, (envid_t)a3, (void*)a4, a5);
   case SYS_page_unmap:
     return sys_page_unmap((envid_t)a1, (void*)a2);
+  case SYS_env_set_pgfault_upcall:
+    return sys_env_set_pgfault_upcall((envid_t)a1, (void*)a2);
 	default:
 		return -E_INVAL;
 	}

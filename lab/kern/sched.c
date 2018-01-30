@@ -41,7 +41,6 @@ sched_yield(void)
   switch (envs[env_idx].env_status) {
     case ENV_RUNNABLE: case ENV_RUNNING:
       env_run(envs + env_idx);
-      panic("return after env_run");
     default:
       // sched_halt never returns
       sched_halt();
