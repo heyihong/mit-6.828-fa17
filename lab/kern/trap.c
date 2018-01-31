@@ -76,7 +76,7 @@ trap_init(void)
     switch (i) {
       case T_BRKPT:
       case T_SYSCALL:
-        SETGATE(idt[i], 1, GD_KT, vectors[i], DPL_USER);
+        SETGATE(idt[i], 0, GD_KT, vectors[i], DPL_USER);
         break;
       default:
         SETGATE(idt[i], 0, GD_KT, vectors[i], 0);
@@ -218,6 +218,11 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+  if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+    lapic_eoi();
+    sched_yield();
+    return;
+  }
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);

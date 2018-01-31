@@ -23,6 +23,22 @@ static bool is_appropriate_perm(int perm) {
          (perm & ~(PTE_U | PTE_P | PTE_AVAIL | PTE_W)) == 0;
 }
 
+// map_page assumes that:
+//  1. srcva and dstva are page aligned and under UTOP.
+//  2. perm is appropriate
+// Returns 0 if success.
+// Returns -E_INVAL if (perm & PTE_W) is non-zero and srcva page is read-only.
+static int map_page(struct Env* srce, void* srcva, struct Env* dste, void* dstva, int perm) {
+  pte_t* pte; 
+  struct PageInfo * pinfo;
+  pinfo = page_lookup(srce->env_pgdir, srcva, &pte);
+  if (pinfo == NULL || 
+      ((perm & PTE_W) != 0 && (*pte & PTE_W) == 0)) {
+    return -E_INVAL;
+  }
+  return page_insert(dste->env_pgdir, pinfo, dstva, perm);
+}
+
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 // Destroys the environment on memory errors.
@@ -243,14 +259,10 @@ sys_page_map(envid_t srcenvid, void *srcva,
   if (!is_aligned_mem(srcva) || !is_aligned_mem(dstva)) {
     return -E_INVAL;
   }
-  pte_t* pte; 
-  struct PageInfo * pinfo;
-  pinfo = page_lookup(srce->env_pgdir, srcva, &pte);
-  if (pinfo == NULL || 
-      ((perm & PTE_W) != 0 && (*pte & PTE_W) == 0)) {
+  if (!is_appropriate_perm(perm)) {
     return -E_INVAL;
   }
-  return page_insert(dste->env_pgdir, pinfo, dstva, perm);
+  return map_page(srce, srcva, dste, dstva, perm);
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
@@ -320,7 +332,32 @@ static int
 sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_try_send not implemented");
+  struct Env * e;
+  int r;
+  if ((r = envid2env(envid, &e, 0)) < 0) {
+    return r;
+  }
+  if (!e->env_ipc_recving) {
+    return -E_IPC_NOT_RECV;
+  }
+  if ((uintptr_t)srcva < UTOP) {
+    if (!is_aligned_mem(srcva) || !is_appropriate_perm(perm)) {
+      return -E_INVAL;
+    }
+    if ((r = map_page(curenv, srcva, e, e->env_ipc_dstva, perm)) < 0) {
+      return r;
+    }
+  }
+
+  e->env_ipc_recving = 0;
+  e->env_ipc_from = curenv->env_id;
+  e->env_ipc_value = value;
+  e->env_ipc_perm = perm;
+
+  assert(e->env_status == ENV_NOT_RUNNABLE);
+  e->env_status = ENV_RUNNABLE;
+
+  return 0;
 }
 
 // Block until a value is ready.  Record that you want to receive
@@ -338,8 +375,19 @@ static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_recv not implemented");
-	return 0;
+  if ((uintptr_t)dstva < UTOP) {
+    if (!is_aligned_mem(dstva)) {
+      return -E_INVAL;
+    }
+  }
+  assert(!curenv->env_ipc_recving);
+  curenv->env_ipc_recving = 1;
+  curenv->env_ipc_dstva = dstva;
+
+  curenv->env_status = ENV_NOT_RUNNABLE;
+  curenv->env_tf.tf_regs.reg_eax = 0; 
+
+  sched_yield();
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -375,6 +423,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
     return sys_page_unmap((envid_t)a1, (void*)a2);
   case SYS_env_set_pgfault_upcall:
     return sys_env_set_pgfault_upcall((envid_t)a1, (void*)a2);
+  case SYS_ipc_try_send:
+    return sys_ipc_try_send((envid_t)a1, (uint32_t)a2, (void*)a3, (unsigned)a4);
+  case SYS_ipc_recv:
+    return sys_ipc_recv((void*)a1);
 	default:
 		return -E_INVAL;
 	}
