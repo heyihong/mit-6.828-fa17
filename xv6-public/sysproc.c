@@ -45,15 +45,23 @@ sys_getpid(void)
 int
 sys_sbrk(void)
 {
-  int addr;
+  uint oldsz;
+  uint newsz;
+  struct proc *curproc = myproc();
   int n;
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
+  if (n < 0) {
     return -1;
-  return addr;
+  }
+  oldsz = curproc->sz;
+  newsz = curproc->sz + n;
+  if (newsz >= KERNBASE) {
+    return -1;
+  }
+  curproc->sz = newsz;
+  return oldsz;
 }
 
 int
