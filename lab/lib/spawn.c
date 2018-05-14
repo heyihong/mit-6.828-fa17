@@ -297,11 +297,29 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
 	return 0;
 }
 
+static int get_perm(unsigned pn) {
+  if ((uvpd[pn / NPTENTRIES] & PTE_P) == 0) {
+    return 0;
+  }
+  return PGOFF(uvpt[pn]);
+}
+
 // Copy the mappings for shared pages into the child address space.
 static int
 copy_shared_pages(envid_t child)
 {
+	int r, pn, perm;
+	void* addr;
 	// LAB 5: Your code here.
+	for (pn = 0; pn < PGNUM(UTOP); pn++) {
+		perm = get_perm(pn);
+		if ((perm & PTE_P) && (perm & PTE_SHARE)) {
+			addr = (void*)(pn * PGSIZE);
+			if ((r = sys_page_map(0, addr, child, addr, perm)) < 0) {
+				return r;
+			}	
+		}
+	}
 	return 0;
 }
 

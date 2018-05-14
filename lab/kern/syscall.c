@@ -12,9 +12,13 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 
+static bool is_valid_mem(const void* va) {
+  return (uintptr_t)va < UTOP;
+}
+
 // Returns 1 if va is below UTOP and page-aligned. Otherwise, returns 0.
-static bool is_aligned_mem(const void* va) {
-  return (uintptr_t)va < UTOP && (uintptr_t)va % PGSIZE == 0;
+static bool is_valid_aligned_mem(const void* va) {
+  return is_valid_mem(va) && (uintptr_t)va % PGSIZE == 0;
 }
 
 static bool is_appropriate_perm(int perm) {
@@ -161,7 +165,28 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	// LAB 5: Your code here.
 	// Remember to check whether the user has supplied us with a good
 	// address!
-	panic("sys_env_set_trapframe not implemented");
+  struct Env * e;
+  int r;
+  if ((r = envid2env(envid, &e, 1)) < 0) {
+    return r;
+  }
+  if (!is_valid_mem(tf)) {
+    return -E_INVAL;
+  }
+  e->env_tf = *tf;
+
+  // Code protection level 3 (CPL 3)
+  e->env_tf.tf_ds = GD_UD | 3;
+  e->env_tf.tf_es = GD_UD | 3;
+  e->env_tf.tf_ss = GD_UD | 3;
+  e->env_tf.tf_cs = GD_UT | 3;
+  
+  // Interrups enabled
+  e->env_tf.tf_eflags |= FL_IF;
+
+  // IOPL of 0
+  e->env_tf.tf_eflags &= ~FL_IOPL_MASK;
+  return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -170,7 +195,7 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 // 'func'.
 //
 // Returns 0 on success, < 0 on error.  Errors are:
-//	-E_BAD_ENV if environment envid doesn't currently exist,
+//	-E_BAD_ENV if environment envid doesn't currently exist,G
 //		or the caller doesn't have permission to change envid.
 static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func)
@@ -218,7 +243,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
   if ((r = envid2env(envid, &e, 1)) < 0) {
     return r;
   }
-  if (!is_aligned_mem(va)) {
+  if (!is_valid_aligned_mem(va)) {
     return -E_INVAL;
   }
   if (!is_appropriate_perm(perm)) {
@@ -268,7 +293,7 @@ sys_page_map(envid_t srcenvid, void *srcva,
   if ((r = envid2env(dstenvid, &dste, 1)) < 0) {
     return r;
   }
-  if (!is_aligned_mem(srcva) || !is_aligned_mem(dstva)) {
+  if (!is_valid_aligned_mem(srcva) || !is_valid_aligned_mem(dstva)) {
     return -E_INVAL;
   }
   if (!is_appropriate_perm(perm)) {
@@ -295,7 +320,7 @@ sys_page_unmap(envid_t envid, void *va)
   if ((r = envid2env(envid, &e, 1)) < 0) {
     return r;
   }
-  if (!is_aligned_mem(va)) {
+  if (!is_valid_aligned_mem(va)) {
     return -E_INVAL;
   }
   page_remove(e->env_pgdir, va);
@@ -353,7 +378,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
     return -E_IPC_NOT_RECV;
   }
   if ((uintptr_t)srcva < UTOP) {
-    if (!is_aligned_mem(srcva) || !is_appropriate_perm(perm)) {
+    if (!is_valid_aligned_mem(srcva) || !is_appropriate_perm(perm)) {
       return -E_INVAL;
     }
     if ((r = map_page(curenv, srcva, e, e->env_ipc_dstva, perm)) < 0) {
@@ -388,7 +413,7 @@ sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
   if ((uintptr_t)dstva < UTOP) {
-    if (!is_aligned_mem(dstva)) {
+    if (!is_valid_aligned_mem(dstva)) {
       return -E_INVAL;
     }
   }
@@ -439,6 +464,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
     return sys_ipc_try_send((envid_t)a1, (uint32_t)a2, (void*)a3, (unsigned)a4);
   case SYS_ipc_recv:
     return sys_ipc_recv((void*)a1);
+  case SYS_env_set_trapframe:
+    return sys_env_set_trapframe((envid_t)a1, (struct Trapframe*)a2);
 	default:
 		return -E_INVAL;
 	}
