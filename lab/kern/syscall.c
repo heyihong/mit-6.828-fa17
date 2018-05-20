@@ -11,6 +11,7 @@
 #include <kern/syscall.h>
 #include <kern/console.h>
 #include <kern/sched.h>
+#include <kern/time.h>
 
 static bool is_valid_mem(const void* va) {
   return (uintptr_t)va < UTOP;
@@ -425,6 +426,14 @@ sys_ipc_recv(void *dstva)
   curenv->env_tf.tf_regs.reg_eax = 0; 
 
   sched_yield();
+}
+
+// Return the current time.
+static int
+sys_time_msec(void)
+{
+	// LAB 6: Your code here.
+	panic("sys_time_msec not implemented");
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
