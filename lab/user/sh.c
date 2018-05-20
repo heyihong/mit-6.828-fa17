@@ -23,7 +23,9 @@ runcmd(char* s)
 {
 	char *argv[MAXARGS], *t, argv0buf[BUFSIZ];
 	int argc, c, i, r, p[2], fd, pipe_child;
+	bool background;
 
+	background = false;
 	pipe_child = 0;
 	gettoken(s, 0);
 
@@ -78,6 +80,27 @@ again:
 			if (fd != 1) {
 				dup(fd, 1);
 				close(fd);
+			}
+			break;
+
+		case '&': // Backgrounding commands
+			if ((c = gettoken(0, &t)) != 0) {
+				cprintf("syntax error: & not followed by %c\n", c);
+				exit();
+			}
+			background = true;
+			goto runit;
+
+		case ';':	// Multiple commands per line
+			if ((r = fork()) < 0) {
+				cprintf("fork: %e", r);
+				exit();
+			}
+			if (r == 0) {
+				goto runit;
+			} else {
+				wait(r);
+				goto again;
 			}
 			break;
 
@@ -156,7 +179,7 @@ runit:
 	// In the parent, close all file descriptors and wait for the
 	// spawned command to exit.
 	close_all();
-	if (r >= 0) {
+	if (r >= 0 && !background) {
 		if (debug)
 			cprintf("[%08x] WAIT %s %08x\n", thisenv->env_id, argv[0], r);
 		wait(r);
@@ -226,9 +249,22 @@ _gettoken(char *s, char **p1, char **p2)
 			cprintf("TOK %c\n", t);
 		return t;
 	}
-	*p1 = s;
-	while (*s && !strchr(WHITESPACE SYMBOLS, *s))
-		s++;
+	if (*s == '"') {
+		*s++ = 0;
+		*p1 = s;
+		while (*s && *s != '"') 
+			s++;
+		if (!*s) {
+			cprintf("unable to parse %s\n", *p1);
+			exit();
+		} else {
+			*s++ = 0;
+		}
+	} else {
+		*p1 = s;
+		while (*s && !strchr(WHITESPACE SYMBOLS, *s))
+			s++;
+	}
 	*p2 = s;
 	if (debug > 1) {
 		t = **p2;
