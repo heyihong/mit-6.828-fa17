@@ -12,14 +12,15 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 #include <kern/time.h>
+#include <kern/e1000.h>
 
-static bool is_valid_mem(const void* va) {
-  return (uintptr_t)va < UTOP;
+static bool is_valid_mem(const void* va, size_t len) {
+  return (uintptr_t)va < UTOP && UTOP - (uintptr_t)va >= len;
 }
 
 // Returns 1 if va is below UTOP and page-aligned. Otherwise, returns 0.
 static bool is_valid_aligned_mem(const void* va) {
-  return is_valid_mem(va) && (uintptr_t)va % PGSIZE == 0;
+  return is_valid_mem(va, 0) && (uintptr_t)va % PGSIZE == 0;
 }
 
 static bool is_appropriate_perm(int perm) {
@@ -171,7 +172,7 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
   if ((r = envid2env(envid, &e, 1)) < 0) {
     return r;
   }
-  if (!is_valid_mem(tf)) {
+  if (!is_valid_mem(tf, sizeof(struct Trapframe))) {
     return -E_INVAL;
   }
   e->env_tf = *tf;
@@ -433,7 +434,15 @@ static int
 sys_time_msec(void)
 {
 	// LAB 6: Your code here.
-	panic("sys_time_msec not implemented");
+  return time_msec();
+}
+
+static int
+sys_send_packet(void* pkt, size_t len) {
+  if (!is_valid_mem(pkt, len)) {
+    return -E_INVAL;
+  }
+  return e1000_send_packet(pkt, len);
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -475,6 +484,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
     return sys_ipc_recv((void*)a1);
   case SYS_env_set_trapframe:
     return sys_env_set_trapframe((envid_t)a1, (struct Trapframe*)a2);
+  case SYS_time_msec:
+    return sys_time_msec(); 
+  case SYS_send_packet:
+    return sys_send_packet((void*)a1, (size_t)a2);
 	default:
 		return -E_INVAL;
 	}

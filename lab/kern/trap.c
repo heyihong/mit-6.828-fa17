@@ -188,24 +188,24 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
-  switch (tf->tf_trapno) {
-    case T_PGFLT:
-      page_fault_handler(tf);
-      return;
-    case T_BRKPT:
-      monitor(tf);
-      return;
-    case T_SYSCALL: {
-      tf->tf_regs.reg_eax = syscall(
-          tf->tf_regs.reg_eax,
-          tf->tf_regs.reg_edx,
-          tf->tf_regs.reg_ecx,
-          tf->tf_regs.reg_ebx,
-          tf->tf_regs.reg_edi,
-          tf->tf_regs.reg_esi);
-      return;
-    }
-  }
+	switch (tf->tf_trapno) {
+		case T_PGFLT:
+		page_fault_handler(tf);
+		return;
+		case T_BRKPT:
+		monitor(tf);
+		return;
+		case T_SYSCALL: {
+		tf->tf_regs.reg_eax = syscall(
+			tf->tf_regs.reg_eax,
+			tf->tf_regs.reg_edx,
+			tf->tf_regs.reg_ecx,
+			tf->tf_regs.reg_ebx,
+			tf->tf_regs.reg_edi,
+			tf->tf_regs.reg_esi);
+		return;
+		}
+	}
 
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
@@ -219,17 +219,19 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
-  if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
-    lapic_eoi();
-    sched_yield();
-    return;
-  }
 
 	// Add time tick increment to clock interrupts.
 	// Be careful! In multiprocessors, clock interrupts are
 	// triggered on every CPU.
 	// LAB 6: Your code here.
-
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+		if (cpunum() == 0) {
+			time_tick();
+		}
+		lapic_eoi();
+		sched_yield();
+		return;
+	}
 
 	// Handle keyboard and serial interrupts.
 	// LAB 5: Your code here.

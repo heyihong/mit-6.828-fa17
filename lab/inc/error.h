@@ -26,6 +26,10 @@ enum {
 	E_NOT_EXEC	,	// File not a valid executable
 	E_NOT_SUPP	,	// Operation not supported
 
+	// Network server error codes
+	E_TOO_LARGE	, 	// The packet is too large to send
+	E_NO_BUF	, 	// No enough bufs to send the packet
+
 	MAXERROR
 };
 
