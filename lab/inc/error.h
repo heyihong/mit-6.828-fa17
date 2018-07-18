@@ -27,8 +27,10 @@ enum {
 	E_NOT_SUPP	,	// Operation not supported
 
 	// Network server error codes
-	E_TOO_LARGE	, 	// The packet is too large to send
-	E_NO_BUF	, 	// No enough bufs to send the packet
+	E_TX_TOO_LARGE	, 	// The packet is too large to send
+	E_TX_NO_BUF		, 	// No enough bufs to send the packet
+	E_RX_TOO_SMALL	, 	// The buffer is too small to receive
+	E_RX_NO_BUF	,	// No buffer receives data
 
 	MAXERROR
 };

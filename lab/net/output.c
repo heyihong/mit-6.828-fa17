@@ -4,12 +4,10 @@
 
 extern union Nsipc nsipcbuf;
 
-union Nsipc *nsreq = (union Nsipc *)0x0ffff000;
-
 void serve_output(struct jif_pkt* pkt) {
 	int r;
 	while ((r = sys_send_packet(pkt->jp_data, pkt->jp_len)) != 0) {
-		if (r != -E_NO_BUF) {
+		if (r != -E_TX_NO_BUF) {
 			panic("serve_output: %e", r);
 		}
 		sys_yield();
@@ -28,7 +26,7 @@ output(envid_t ns_envid)
 	int perm;
 
 	while (true) {
-		req = ipc_recv((int32_t*) &whom, nsreq, &perm);
+		req = ipc_recv((int32_t*) &whom, &nsipcbuf, &perm);
 
 		if (whom != ns_envid) {
 			cprintf("Invalid request from %08x: not from network server\n",
@@ -48,6 +46,6 @@ output(envid_t ns_envid)
 			continue;
 		}
 
-		serve_output((struct jif_pkt*)nsreq);
+		serve_output((struct jif_pkt*)&nsipcbuf);
 	}
 }

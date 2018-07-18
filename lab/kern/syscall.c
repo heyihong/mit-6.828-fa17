@@ -445,6 +445,14 @@ sys_send_packet(void* pkt, size_t len) {
   return e1000_send_packet(pkt, len);
 }
 
+static int
+sys_recv_packet(void* pkt, size_t len) {
+  if (!is_valid_mem(pkt, len)) {
+    return -E_INVAL;
+  }
+  return e1000_recv_packet(pkt, len);
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -488,6 +496,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
     return sys_time_msec(); 
   case SYS_send_packet:
     return sys_send_packet((void*)a1, (size_t)a2);
+  case SYS_recv_packet:
+    return sys_recv_packet((void*)a1, (size_t)a2);
 	default:
 		return -E_INVAL;
 	}

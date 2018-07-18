@@ -28,8 +28,31 @@
 #define E1000_TXD_CMD_RS     0x08 /* Report Status */
 #define E1000_TXD_STAT_DD    0x01 /* Descriptor Done */
 
+#define E1000_MTA       (0x05200/4)  /* Multicast Table Array - RW Array */
+
+#define E1000_RDBAL     (0x02800/4)  /* RX Descriptor Base Address Low - RW */
+#define E1000_RDBAH     (0x02804/4)  /* RX Descriptor Base Address High - RW */
+#define E1000_RDLEN     (0x02808/4)  /* RX Descriptor Length - RW */
+#define E1000_RDH       (0x02810/4)  /* RX Descriptor Head - RW */
+#define E1000_RDT       (0x02818/4)  /* RX Descriptor Tail - RW */
+#define E1000_RAL       (0x05400/4)  /* Receive Address Low */ 
+#define E1000_RAH       (0x05404/4)  /* Receive Address High */
+#define E1000_RAH_AV    (1 << 31)    /* Receive Address High address valid bit */
+
+#define E1000_RCTL      (0x00100/4)  /* RX Control - RW */
+#define E1000_RCTL_EN       0x00000002    /* enable */
+#define E1000_RCTL_LBM_NO   0x00000000    /* no loopback mode */
+#define E1000_RCTL_BAM      0x00008000    /* broadcast enable */
+#define E1000_RCTL_SZ_2048  0x00000000    /* rx buffer size 2048 */
+#define E1000_RCTL_SECRC    0x04000000    /* Strip Ethernet CRC */
+
+#define E1000_RXD_STAT_DD       0x01    /* Descriptor Done */
+#define E1000_RXD_STAT_EOP      0x02    /* End of Packet */
+
 void e1000_init();
 
 int e1000_send_packet(void* packet, size_t len);
+
+int e1000_recv_packet(void* packet, size_t len);
 
 #endif	// JOS_KERN_E1000_H
